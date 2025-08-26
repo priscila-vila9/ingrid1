@@ -45,6 +45,7 @@
       transition: background 0.2s ease;
     }
     .pacman.powered { background: orange !important; }
+
     .dot {
       position: absolute;
       top: 7px;
@@ -54,6 +55,7 @@
       background: white;
       border-radius: 50%;
     }
+
     .fruit {
       position: absolute;
       top: 5px;
@@ -123,10 +125,45 @@
     }
 
     button:hover { background: #666; }
+
     #buttons {
       display: flex;
       justify-content: center;
       margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    #touch-controls {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      margin-top: 10px;
+    }
+
+    #touch-controls .row {
+      display: flex;
+      justify-content: center;
+    }
+
+    .dir-btn {
+      background: #333;
+      color: white;
+      font-size: 1.5rem;
+      padding: 15px 20px;
+      margin: 5px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    .dir-btn:active {
+      background: #666;
+    }
+
+    @media (max-width: 768px) {
+      #touch-controls {
+        display: flex;
+      }
     }
   </style>
 </head>
@@ -153,6 +190,17 @@
   <button id="restartBtn" style="display:none;">Reiniciar</button>
 </div>
 
+<div id="touch-controls">
+  <div class="row">
+    <button class="dir-btn" data-dir="up">⬆️</button>
+  </div>
+  <div class="row">
+    <button class="dir-btn" data-dir="left">⬅️</button>
+    <button class="dir-btn" data-dir="down">⬇️</button>
+    <button class="dir-btn" data-dir="right">➡️</button>
+  </div>
+</div>
+
 <script>
 const width = 24;
 let layout = [], cells = [], pacmanPosition, ghosts = [];
@@ -170,7 +218,7 @@ const colorSelect = document.getElementById('colorSelect');
 
 colorSelect.addEventListener('change', () => {
   pacmanColor = colorSelect.value;
-  drawPacman(); // Atualiza a cor
+  drawPacman();
 });
 
 const fruitPositions = [3*width+3, 3*width+20, 20*width+3, 20*width+20, 12*width+12];
@@ -179,8 +227,7 @@ function createLayout() {
   layout = [];
   for(let i=0;i<width*width;i++){
     const row = Math.floor(i/width), col = i%width;
-    if(row===0||row===width-1||col===0||col===width-1){ layout.push(1); } 
-    else { layout.push(2); }
+    layout.push((row===0||row===width-1||col===0||col===width-1) ? 1 : 2);
   }
   [6,12,18].forEach(r=>{ for(let c=2;c<width-2;c++){ layout[r*width+c]=1; } });
   [6,12,18].forEach(c=>{ for(let r=2;r<width-2;r++){ layout[r*width+c]=1; } });
@@ -222,26 +269,21 @@ class Ghost {
   move(){
     if(this.isDead) return;
     const directions=[-1,1,-width,width];
-    function manhattanDist(pos1,pos2){
-      const x1=pos1%width, y1=Math.floor(pos1/width);
-      const x2=pos2%width, y2=Math.floor(pos2/width);
+    function manhattanDist(a,b){
+      const x1=a%width,y1=Math.floor(a/width),x2=b%width,y2=Math.floor(b/width);
       return Math.abs(x1-x2)+Math.abs(y1-y2);
     }
     let validMoves=directions.filter(d=>{
       const newPos=this.position+d;
-      return newPos>=0 && newPos<layout.length && layout[newPos]!==1 && !ghosts.some(g=>g.position===newPos && g!==this && !g.isDead);
+      return newPos>=0&&newPos<layout.length&&layout[newPos]!==1&&!ghosts.some(g=>g.position===newPos&&g!==this&&!g.isDead);
     });
     if(validMoves.length===0) return;
-    let bestMove=validMoves[0];
-    if(this.vulnerable){
-      validMoves.sort((a,b)=>manhattanDist(this.position+b,pacmanPosition)-manhattanDist(this.position+a,pacmanPosition));
-      bestMove=validMoves[0];
-    } else {
-      validMoves.sort((a,b)=>manhattanDist(this.position+a,pacmanPosition)-manhattanDist(this.position+b,pacmanPosition));
-      if(manhattanDist(this.position+bestMove,pacmanPosition)>=manhattanDist(this.position,pacmanPosition)){
-        bestMove=validMoves[Math.floor(Math.random()*validMoves.length)];
-      }
-    }
+    validMoves.sort((a,b)=>{
+      const distA=manhattanDist(this.position+a,pacmanPosition);
+      const distB=manhattanDist(this.position+b,pacmanPosition);
+      return this.vulnerable?distB-distA:distA-distB;
+    });
+    const bestMove=validMoves[0];
     cells[this.position].removeChild(this.element);
     this.position+=bestMove;
     cells[this.position].appendChild(this.element);
@@ -275,8 +317,8 @@ function stopGhosts(){ clearInterval(ghostInterval); }
 
 function updateScore(points){ score+=points; scoreDisplay.textContent='Pontuação: '+score; }
 
-function endGame(message){
-  gameOver=true; stopGhosts(); status.textContent=message;
+function endGame(msg){
+  gameOver=true; stopGhosts(); status.textContent=msg;
   restartBtn.style.display='inline-block'; speedBtn.style.display='none'; startBtn.style.display='none';
 }
 
@@ -328,6 +370,16 @@ document.addEventListener('keydown',e=>{
     case 'ArrowLeft': case 'a': case 'A': movePacman(-1); break;
     case 'ArrowRight': case 'd': case 'D': movePacman(1); break;
   }
+});
+
+document.querySelectorAll('.dir-btn').forEach(btn => {
+  btn.addEventListener('touchstart', () => {
+    const dir = btn.dataset.dir;
+    if(dir === 'up') movePacman(-width);
+    if(dir === 'down') movePacman(width);
+    if(dir === 'left') movePacman(-1);
+    if(dir === 'right') movePacman(1);
+  });
 });
 
 startBtn.addEventListener('click', resetGame);
